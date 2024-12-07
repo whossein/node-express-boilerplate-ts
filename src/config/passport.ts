@@ -12,60 +12,32 @@ const JwtStrategy = passportJwt.Strategy;
 const ExtractJwt = passportJwt.ExtractJwt;
 
 passport.use(
-  new LocalStrategy(
-    { usernameField: 'username' },
-    (username, password, done) => {
-      User.findOne(
-        { username: username.toLowerCase() },
-        (err: any, user: any) => {
-          if (err) {
-            return done(err);
-          }
-          if (!user) {
-            return done(undefined, false, {
-              message: `username ${username} not found.`,
-            });
-          }
-          user.comparePassword(password, (err: Error, isMatch: boolean) => {
-            if (err) {
-              return done(err);
-            }
-            if (isMatch) {
-              return done(undefined, user);
-            }
-            return done(undefined, false, {
-              message: 'Invalid username or password.',
-            });
-          });
-        },
-      );
-    },
-  ),
-);
+  new LocalStrategy({ usernameField: 'username' }, (username, password, done) => {
+    console.log('localStrategy__________');
 
-// passport.use(
-//   new JwtStrategy(
-//     {
-//       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-//       secretOrKey: config.jwt.secret,
-//     },
-//     function (jwtToken, done) {
-//       User.findOne(
-//         { username: jwtToken.username },
-//         function (err: any, user: IUser) {
-//           if (err) {
-//             return done(err, false);
-//           }
-//           if (user) {
-//             return done(undefined, user, jwtToken);
-//           } else {
-//             return done(undefined, false);
-//           }
-//         },
-//       );
-//     },
-//   ),
-// );
+    User.findOne({ username: username.toLowerCase() }, (err: any, user: any) => {
+      if (err) {
+        return done(err);
+      }
+      if (!user) {
+        return done(undefined, false, {
+          message: `username ${username} not found.`,
+        });
+      }
+      user.comparePassword(password, (err: Error, isMatch: boolean) => {
+        if (err) {
+          return done(err);
+        }
+        if (isMatch) {
+          return done(undefined, user);
+        }
+        return done(undefined, false, {
+          message: 'Invalid username or password.',
+        });
+      });
+    });
+  }),
+);
 
 const options: StrategyOptions = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -74,23 +46,12 @@ const options: StrategyOptions = {
 
 export const jwtStrategy = new JwtStrategy(options, async (payload, done) => {
   try {
-    const user = User.findOne(
-      { username: payload.username },
-      function (err: any, user: IUser) {
-        if (err) {
-          return done(err, false);
-        }
-        if (user) {
-          return done(undefined, user, payload);
-        } else {
-          return done(undefined, false);
-        }
-      },
-    );
+    const user = await User.findOne({ username: payload.username });
 
     if (user) {
-      return done(null, user);
+      return done(null, user, payload);
     }
+
     return done(null, false);
   } catch (error) {
     return done(error, false);
