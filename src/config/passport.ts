@@ -13,29 +13,24 @@ const ExtractJwt = passportJwt.ExtractJwt;
 
 passport.use(
   new LocalStrategy({ usernameField: 'username' }, (username, password, done) => {
-    console.log('localStrategy__________');
+    User.findOne({ username: username.toLowerCase() })
+      .then(async (user) => {
+        if (!user) {
+          return done(undefined, false, {
+            message: `username ${username} not found.`,
+          });
+        }
 
-    User.findOne({ username: username.toLowerCase() }, (err: any, user: any) => {
-      if (err) {
-        return done(err);
-      }
-      if (!user) {
-        return done(undefined, false, {
-          message: `username ${username} not found.`,
-        });
-      }
-      user.comparePassword(password, (err: Error, isMatch: boolean) => {
-        if (err) {
-          return done(err);
-        }
+        const isMatch = await user.isPasswordMatch(password); // Now TypeScript recognizes this
         if (isMatch) {
-          return done(undefined, user);
+          return done(null, user);
         }
-        return done(undefined, false, {
+      })
+      .catch((err) => {
+        return done(err, false, {
           message: 'Invalid username or password.',
         });
       });
-    });
   }),
 );
 

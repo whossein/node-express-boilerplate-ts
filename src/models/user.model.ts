@@ -1,17 +1,19 @@
-import mongoose, { Model, model, ObjectId, Schema } from 'mongoose';
+import mongoose, { Model, model, ObjectId, Schema, Document } from 'mongoose';
 import validator from 'validator';
 import bcrypt from 'bcryptjs';
 import toJSON from './plugins/toJSON.plugin';
 import { roles } from '../config/roles';
 import mongoosePaginate from 'mongoose-paginate-v2';
 
-export interface IUser {
+export interface IUser extends Document {
   id: ObjectId;
   name: string;
   email: string;
   password?: string;
   role: (typeof roles)[number];
   isEmailVerified: boolean;
+  // comparePassword(candidatePassword: string): Promise<boolean>;
+  isPasswordMatch(password: string): Promise<boolean>;
 }
 
 export interface IUserFilter {}
@@ -52,9 +54,7 @@ const userSchema = new Schema<IUser, IUserModel>(
       minlength: 8,
       validate(value: string) {
         if (!value.match(/\d/) || !value.match(/[a-zA-Z]/)) {
-          throw new Error(
-            'Password must contain at least one letter and one number',
-          );
+          throw new Error('Password must contain at least one letter and one number');
         }
       },
       private: true, // used by the toJSON plugin
@@ -79,19 +79,21 @@ userSchema.plugin(toJSON);
 // @ts-ignore
 userSchema.plugin(mongoosePaginate);
 
-userSchema.static(
-  'isEmailTaken',
-  async (email: string, excludeUserId?: ObjectId) => {
-    // @ts-ignore
-    const user = await this?.findOne({ email, _id: { $ne: excludeUserId } });
-    return !!user;
-  },
-);
-
-userSchema.method('isPasswordMatch', async function (password: string) {
-  const user = this;
-  return bcrypt.compare(password, user.password || '');
+userSchema.static('isEmailTaken', async (email: string, excludeUserId?: ObjectId) => {
+  // @ts-ignore
+  const user = await this?.findOne({ email, _id: { $ne: excludeUserId } });
+  return !!user;
 });
+
+// userSchema.method('isPasswordMatch', async function (password: string) {
+//   const user = this;
+//   return bcrypt.compare(password, user.password || '');
+// });
+
+// Add the custom method
+userSchema.methods.isPasswordMatch = async function (candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
 
 userSchema.pre('save', async function (next) {
   const user = this;
