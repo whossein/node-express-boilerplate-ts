@@ -1,109 +1,76 @@
-import mongoose, { Model, model, ObjectId, Schema, Document } from 'mongoose';
-import validator from 'validator';
+import { Model, DataTypes } from 'sequelize';
 import bcrypt from 'bcryptjs';
-import toJSON from './plugins/toJSON.plugin';
-import { roles } from '../config/roles';
-import mongoosePaginate from 'mongoose-paginate-v2';
+import sequelize from '../config/database';
 
-export interface IUser extends Document {
-  id: ObjectId;
+interface UserAttributes {
+  id: number;
   name: string;
   email: string;
-  password?: string;
-  role: (typeof roles)[number];
+  password: string;
+  role: 'user' | 'admin';
   isEmailVerified: boolean;
-  // comparePassword(candidatePassword: string): Promise<boolean>;
-  isPasswordMatch(password: string): Promise<boolean>;
 }
 
-export interface IUserFilter {}
-export interface IUserOptions {
-  sortBy?: 'desc' | 'asc';
-  limit?: number;
-  page?: number;
-}
-interface IUserModel extends Model<IUser> {
-  isEmailTaken(email: string, excludeUserId?: ObjectId): boolean;
-  paginate(filter: IUserFilter, options: IUserOptions): Promise<IUser[]>;
-  isPasswordMatch(password: string): Promise<boolean>;
+class User extends Model<UserAttributes> implements UserAttributes {
+  public id!: number;
+  public name!: string;
+  public email!: string;
+  public password!: string;
+  public role!: 'user' | 'admin';
+  public isEmailVerified!: boolean;
+
+  // timestamps
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+
+  public async isPasswordMatch(password: string): Promise<boolean> {
+    return bcrypt.compare(password, this.password);
+  }
 }
 
-const userSchema = new Schema<IUser, IUserModel>(
+User.init(
   {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
     name: {
-      type: String,
-      required: true,
-      trim: true,
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     email: {
-      type: String,
-      required: true,
+      type: DataTypes.STRING,
+      allowNull: false,
       unique: true,
-      trim: true,
-      lowercase: true,
-      validate(value: string) {
-        if (!validator.isEmail(value)) {
-          throw new Error('Invalid email');
-        }
+      validate: {
+        isEmail: true,
       },
     },
     password: {
-      type: String,
-      required: true,
-      trim: true,
-      minlength: 8,
-      validate(value: string) {
-        if (!value.match(/\d/) || !value.match(/[a-zA-Z]/)) {
-          throw new Error('Password must contain at least one letter and one number');
-        }
-      },
-      private: true, // used by the toJSON plugin
+      type: DataTypes.STRING,
+      allowNull: false,
     },
     role: {
-      type: String,
-      enum: roles,
-      default: 'user',
+      type: DataTypes.ENUM('user', 'admin'),
+      defaultValue: 'user',
     },
     isEmailVerified: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {
-    timestamps: true,
+    sequelize,
+    modelName: 'User',
+    hooks: {
+      beforeSave: async (user: User) => {
+        if (user.changed('password')) {
+          user.password = await bcrypt.hash(user.password, 8);
+        }
+      },
+    },
   },
 );
 
-// @ts-ignore
-userSchema.plugin(toJSON);
-// @ts-ignore
-userSchema.plugin(mongoosePaginate);
-
-userSchema.static('isEmailTaken', async (email: string, excludeUserId?: ObjectId) => {
-  // @ts-ignore
-  const user = await this?.findOne({ email, _id: { $ne: excludeUserId } });
-  return !!user;
-});
-
-// userSchema.method('isPasswordMatch', async function (password: string) {
-//   const user = this;
-//   return bcrypt.compare(password, user.password || '');
-// });
-
-// Add the custom method
-userSchema.methods.isPasswordMatch = async function (candidatePassword: string): Promise<boolean> {
-  return bcrypt.compare(candidatePassword, this.password);
-};
-
-userSchema.pre('save', async function (next) {
-  const user = this;
-  if (user.isModified('password') && user.password) {
-    user.password = await bcrypt.hash(user.password, 8);
-  }
-  next();
-});
-
-const User = model<IUser, IUserModel>('User', userSchema);
-
-module.exports = User;
 export default User;
