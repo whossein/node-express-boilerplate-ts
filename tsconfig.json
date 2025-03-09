@@ -119,5 +119,6 @@
 
     // Disallow features that require cross-file awareness
     "isolatedModules": true /* Skip type checking all .d.ts files. */
-  }
+  },
+  "exclude": ["eslint.config.js", "node_modules", "**/*.config.js", "models", "src/migrations"]
 }

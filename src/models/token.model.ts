@@ -1,18 +1,23 @@
-import { Model, DataTypes } from 'sequelize';
+import { Model, DataTypes, Optional } from 'sequelize';
 import { sequelize } from '../config/database';
 import { tokenTypes } from '../config/tokens';
 import User from './user.model';
 
-interface TokenAttributes {
+export interface TokenAttributes {
   id: number;
   token: string;
   userId: number;
   type: tokenTypes;
   expires: Date;
   blacklisted: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-class Token extends Model<TokenAttributes> implements TokenAttributes {
+export interface TokenInput extends Optional<TokenAttributes, 'id' | 'blacklisted' | 'createdAt' | 'updatedAt'> {}
+export interface TokenOutput extends Required<TokenAttributes> {}
+
+class Token extends Model<TokenAttributes, TokenInput> implements TokenAttributes {
   public id!: number;
   public token!: string;
   public userId!: number;
@@ -20,9 +25,11 @@ class Token extends Model<TokenAttributes> implements TokenAttributes {
   public expires!: Date;
   public blacklisted!: boolean;
 
-  // timestamps
   public readonly createdAt!: Date;
   public readonly updatedAt!: Date;
+
+  // Declare association
+  public readonly user?: User;
 }
 
 Token.init(
@@ -56,13 +63,25 @@ Token.init(
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    createdAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+    updatedAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
   },
   {
     sequelize,
     modelName: 'Token',
+    tableName: 'Tokens',
     indexes: [
       {
         fields: ['token'],
+      },
+      {
+        fields: ['userId'],
       },
     ],
   },
