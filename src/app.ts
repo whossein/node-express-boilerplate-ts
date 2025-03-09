@@ -10,7 +10,7 @@ import { authLimiter } from './middlewares/rateLimiter';
 import routes from './routes/v1';
 import httpStatus from 'http-status';
 import { errorConverter, errorHandler } from './middlewares/error';
-import sequelize from './config/database';
+import { sequelize } from './config/database';
 import ApiError from './utils/apiError.js';
 import { jwtStrategy } from './config/passport';
 
@@ -18,16 +18,26 @@ const app = express();
 
 const env = config.env;
 
-// Connect to database
-sequelize
-  .authenticate()
-  .then(() => {
-    console.log('Connected to MySQL database');
-    return sequelize.sync(); // This will create tables if they don't exist
-  })
-  .catch((err) => {
-    console.error('Unable to connect to the database:', err);
-  });
+// Connect to database and sync models
+const initializeDatabase = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('✅ Connected to MySQL database');
+
+    // In production, you might want to disable auto-sync
+    if (env !== 'production') {
+      await sequelize.sync();
+      console.log('✅ Database tables synchronized');
+    }
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('❌ Unable to connect to the database:', err.message);
+    process.exit(1); // Exit if database connection fails
+  }
+};
+
+// Initialize database connection
+initializeDatabase();
 
 if (env !== 'test') {
   app.use(morgan.successHandler);
