@@ -1,3 +1,5 @@
+- fix migration issue
+
 - test app and user id api's
 
 - imp swagger ui
