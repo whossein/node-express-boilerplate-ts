@@ -1,60 +1,77 @@
-import mongoose, { model, Model, Schema } from 'mongoose';
-import { toJSON } from './plugins';
+import { Model, DataTypes } from 'sequelize';
+import { sequelize } from '../config/database';
 import { tokenTypes } from '../config/tokens';
+import User from './user.model';
 
-export interface ITokenSchema {
+interface TokenAttributes {
+  id: number;
   token: string;
-  user: string;
+  userId: number;
   type: tokenTypes;
-  expires: string;
+  expires: Date;
   blacklisted: boolean;
 }
 
-interface ITokenModel extends Model<ITokenSchema> {}
+class Token extends Model<TokenAttributes> implements TokenAttributes {
+  public id!: number;
+  public token!: string;
+  public userId!: number;
+  public type!: tokenTypes;
+  public expires!: Date;
+  public blacklisted!: boolean;
 
-const tokenSchema = new Schema(
+  // timestamps
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Token.init(
   {
-    token: {
-      type: String,
-      required: true,
-      index: true,
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
     },
-    user: {
-      type: mongoose.SchemaTypes.ObjectId,
-      ref: 'User',
-      required: true,
+    token: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    userId: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      references: {
+        model: 'Users',
+        key: 'id',
+      },
     },
     type: {
-      type: String,
-      enum: [
-        tokenTypes.REFRESH,
-        tokenTypes.RESET_PASSWORD,
-        tokenTypes.VERIFY_EMAIL,
-      ],
-      required: true,
+      type: DataTypes.ENUM(...Object.values(tokenTypes)),
+      allowNull: false,
     },
     expires: {
-      type: Date,
-      required: true,
+      type: DataTypes.DATE,
+      allowNull: false,
     },
     blacklisted: {
-      type: Boolean,
-      default: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
     },
   },
   {
-    timestamps: true,
+    sequelize,
+    modelName: 'Token',
+    indexes: [
+      {
+        fields: ['token'],
+      },
+    ],
   },
 );
 
-// add plugin that converts mongoose to json
-tokenSchema.plugin(toJSON.default);
-
-/**
- * @typedef Token
- */
-
-const Token = model<ITokenSchema, ITokenModel>('Token', tokenSchema);
+// Define association
+Token.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user',
+});
 
 export default Token;
-module.exports = Token;

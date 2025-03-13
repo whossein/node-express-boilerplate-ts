@@ -1,12 +1,12 @@
 import httpStatus from 'http-status';
-import { ApiError, pick, catchAsync } from '../utils';
+import { ApiError, catchAsync } from '../utils';
 import { Request, Response } from 'express';
-import {
-  authService,
-  userService,
-  tokenService,
-  emailService,
-} from '../services';
+import { authService, userService, tokenService, emailService } from '../services';
+import { User } from '../models';
+
+interface AuthenticatedRequest extends Request {
+  user?: User;
+}
 
 const register = catchAsync(async (req: Request, res: Response) => {
   const user = await userService.createUser(req.body);
@@ -32,34 +32,24 @@ const refreshTokens = catchAsync(async (req: Request, res: Response) => {
 });
 
 const forgotPassword = catchAsync(async (req: Request, res: Response) => {
-  const resetPasswordToken = await tokenService.generateResetPasswordToken(
-    req.body.email,
-  );
+  const resetPasswordToken = await tokenService.generateResetPasswordToken(req.body.email);
   await emailService.sendResetPasswordEmail(req.body.email, resetPasswordToken);
   res.status(httpStatus.NO_CONTENT).send();
 });
 
 const resetPassword = catchAsync(async (req: Request, res: Response) => {
-  await authService.resetPassword(
-    req.query.token?.toString() || '',
-    req.body.password,
-  );
+  await authService.resetPassword(req.query.token?.toString() || '', req.body.password);
   res.status(httpStatus.NO_CONTENT).send();
 });
 
-const sendVerificationEmail = catchAsync(
-  async (req: Request, res: Response) => {
-    const verifyEmailToken = await tokenService.generateVerifyEmailToken(
-      // @ts-ignore
-      req?.user,
-    );
-    await emailService.sendVerificationEmail(
-      req?.user?.email || '',
-      verifyEmailToken,
-    );
-    res.status(httpStatus.NO_CONTENT).send();
-  },
-);
+const sendVerificationEmail = catchAsync(async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    throw new ApiError(httpStatus.UNAUTHORIZED, 'User not authenticated');
+  }
+  const verifyEmailToken = await tokenService.generateVerifyEmailToken(req.user);
+  await emailService.sendVerificationEmail(req.user.email, verifyEmailToken);
+  res.status(httpStatus.NO_CONTENT).send();
+});
 
 const verifyEmail = catchAsync(async (req: Request, res: Response) => {
   await authService.verifyEmail(req.query.token?.toString() || '');

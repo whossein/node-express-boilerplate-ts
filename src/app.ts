@@ -10,13 +10,34 @@ import { authLimiter } from './middlewares/rateLimiter';
 import routes from './routes/v1';
 import httpStatus from 'http-status';
 import { errorConverter, errorHandler } from './middlewares/error';
-import mongoSanitize from 'express-mongo-sanitize';
+import { sequelize } from './config/database';
 import ApiError from './utils/apiError.js';
 import { jwtStrategy } from './config/passport';
 
 const app = express();
 
 const env = config.env;
+
+// Connect to database and sync models
+const initializeDatabase = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('✅ Connected to MySQL database');
+
+    // In production, you might want to disable auto-sync
+    if (env !== 'production') {
+      await sequelize.sync();
+      console.log('✅ Database tables synchronized');
+    }
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error('❌ Unable to connect to the database:', err.message);
+    process.exit(1); // Exit if database connection fails
+  }
+};
+
+// Initialize database connection
+initializeDatabase();
 
 if (env !== 'test') {
   app.use(morgan.successHandler);
@@ -34,7 +55,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // sanitize request data
 app.use(xss());
-app.use(mongoSanitize());
 
 // gzip compression
 app.use(compression());
@@ -46,14 +66,6 @@ app.options('*', cors());
 // jwt authentication
 app.use(passport.initialize());
 passport.use('jwt', jwtStrategy);
-// passport.use(
-//   'jwt',
-//   // config.jwt
-//   new JWTStrategy({
-//     jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-//     secretOrKey: process.env.SECRET_KEY || 'jvns',
-//   }),
-// );
 
 // limit repeated failed requests to auth endpoints
 if (env === 'production') {
